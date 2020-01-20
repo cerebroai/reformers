@@ -22,7 +22,7 @@
 
 import math
 import tensorflow as tf
-from tensorflow.keras.layers import Linear, Dense
+from tensorflow.keras.layers import Dense
 
 def mask_fill_inf(matrix, mask):
     negmask = 1 - mask
@@ -77,7 +77,7 @@ class TFSelfAttention(tf.keras.Model):
         super().__init__()
         assert emb % heads == 0, 'dimensions must be divisible by number of heads'
         self.attn = MultiheadAttention(emb, heads)
-        self.to_out = Linear(emb, emb)
+        self.to_out = Dense(emb, emb)
         self.causal = causal
 
     def call(self, inputs):
@@ -97,8 +97,8 @@ class TFFeedForward(tf.keras.Model):
     def __init__(self, emb, mult = 4):
         super().__init__()
         self.emb = emb
-        self.proj_in = Linear(emb, emb * mult)
-        self.proj_out = Linear(emb * mult, emb)
+        self.proj_in = Dense(emb, emb * mult)
+        self.proj_out = Dense(emb * mult, emb)
 
     def forward(self, inputs):
         inputs = self.proj_in(inputs)

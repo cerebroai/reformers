@@ -65,7 +65,7 @@ class TFReformer(tf.keras.Model):
         x = self.layers(x)
         return tf.stack(tf.sum(tf.split(x, 2, axis=-1), axis=0))
 
-class ReformerLM(nn.Module):
+class ReformerLM(tf.keras.Model):
     def __init__(self, num_tokens, emb, depth, max_seq_len, heads = 8, bucket_size = 64, n_hashes = 8, ff_chunks = 100, attn_chunks = None, causal = False, weight_tie = False, lsh_dropout = 0., random_rotations_per_head = False, twin_attention = False, use_scale_norm = False, use_full_attn = False):
         super().__init__()
         self.token_emb = Embedding(num_tokens, emb)

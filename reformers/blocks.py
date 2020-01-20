@@ -1,12 +1,10 @@
 import tensorflow as tf
-from tensorflow.contrib.eager.python.examples.revnet import ops
-
 
 class RevBlock(tf.keras.Model):
-  """Single reversible block containing several `_Residual` blocks.
-  Each `_Residual` block in turn contains two _ResidualInner blocks,
-  corresponding to the `F`/`G` functions in the paper.
-  """
+    """Single reversible block containing several `_Residual` blocks.
+    Each `_Residual` block in turn contains two _ResidualInner blocks,
+    corresponding to the `F`/`G` functions in the paper.
+    """
 
     def __init__(self,
                 n_res,
@@ -18,18 +16,18 @@ class RevBlock(tf.keras.Model):
                 bottleneck=False,
                 fused=True,
                 dtype=tf.float32):
-    """Initialize RevBlock.
-    Args:
-    n_res: number of residual blocks
-    filters: list/tuple of integers for output filter sizes of each residual
-    strides: length 2 list/tuple of integers for height and width strides
-    input_shape: length 3 list/tuple of integers
-    batch_norm_first: whether to apply activation and batch norm before conv
-    data_format: tensor data format, "NCHW"/"NHWC"
-    bottleneck: use bottleneck residual if True
-    fused: use fused batch normalization if True
-    dtype: float16, float32, or float64
-    """
+        """Initialize RevBlock.
+        Args:
+        n_res: number of residual blocks
+        filters: list/tuple of integers for output filter sizes of each residual
+        strides: length 2 list/tuple of integers for height and width strides
+        input_shape: length 3 list/tuple of integers
+        batch_norm_first: whether to apply activation and batch norm before conv
+        data_format: tensor data format, "NCHW"/"NHWC"
+        bottleneck: use bottleneck residual if True
+        fused: use fused batch normalization if True
+        dtype: float16, float32, or float64
+        """
         super(RevBlock, self).__init__()
         self.blocks = tf.train.checkpoint.List()
         for i in range(n_res):
@@ -47,10 +45,10 @@ class RevBlock(tf.keras.Model):
             self.blocks.append(block)
 
         if data_format == "channels_first":
-        input_shape = (filters, input_shape[1] // curr_strides[0],
+            input_shape = (filters, input_shape[1] // curr_strides[0],
                         input_shape[2] // curr_strides[1])
         else:
-        input_shape = (input_shape[0] // curr_strides[0],
+            input_shape = (input_shape[0] // curr_strides[0],
                         input_shape[1] // curr_strides[1], filters)
 
     def call(self, h, training=True):
@@ -71,15 +69,15 @@ class RevBlock(tf.keras.Model):
             if i == 0:
                 # First block usually contains downsampling that can't be reversed
                 with tf.GradientTape() as tape:
-                x = tf.identity(x)
-                tape.watch(x)
-                y = block(x, training=training)
+                    x = tf.identity(x)
+                    tape.watch(x)
+                    y = block(x, training=training)
 
-                grads_combined = tape.gradient(
-                    y, [x] + block.trainable_variables, output_gradients=dy)
-                dy = grads_combined[0]
-                grads_all += grads_combined[1:]
-                vars_all += block.trainable_variables
+                    grads_combined = tape.gradient(
+                        y, [x] + block.trainable_variables, output_gradients=dy)
+                    dy = grads_combined[0]
+                    grads_all += grads_combined[1:]
+                    vars_all += block.trainable_variables
             else:
                 y, dy, grads, vars_ = block.backward_grads_and_vars(
                     y, dy, training=training)
@@ -89,27 +87,27 @@ class RevBlock(tf.keras.Model):
         return dy, grads_all, vars_all
 
 class ReversibleSequence(tf.keras.Model):
-  """Single reversible block containing several `_Residual` blocks.
-  Each `_Residual` block in turn contains two _ResidualInner blocks,
-  corresponding to the `F`/`G` functions in the paper.
+    """Single reversible block containing several `_Residual` blocks.
+    Each `_Residual` block in turn contains two _ResidualInner blocks,
+    corresponding to the `F`/`G` functions in the paper.
 
-  This is based on PyTorch's RevTorch - ReversibleSequence
-  """
+    This is based on PyTorch's RevTorch - ReversibleSequence
+    """
 
     def __init__(self,
                 blocks):
-    """Initialize RevBlock.
-    Args:
-    n_res: number of residual blocks
-    filters: list/tuple of integers for output filter sizes of each residual
-    strides: length 2 list/tuple of integers for height and width strides
-    input_shape: length 3 list/tuple of integers
-    batch_norm_first: whether to apply activation and batch norm before conv
-    data_format: tensor data format, "NCHW"/"NHWC"
-    bottleneck: use bottleneck residual if True
-    fused: use fused batch normalization if True
-    dtype: float16, float32, or float64
-    """
+        """Initialize RevBlock.
+        Args:
+        n_res: number of residual blocks
+        filters: list/tuple of integers for output filter sizes of each residual
+        strides: length 2 list/tuple of integers for height and width strides
+        input_shape: length 3 list/tuple of integers
+        batch_norm_first: whether to apply activation and batch norm before conv
+        data_format: tensor data format, "NCHW"/"NHWC"
+        bottleneck: use bottleneck residual if True
+        fused: use fused batch normalization if True
+        dtype: float16, float32, or float64
+        """
         super(RevBlock, self).__init__()
         self.blocks = blocks
 
@@ -131,15 +129,15 @@ class ReversibleSequence(tf.keras.Model):
             if i == 0:
                 # First block usually contains downsampling that can't be reversed
                 with tf.GradientTape() as tape:
-                x = tf.identity(x)
-                tape.watch(x)
-                y = block(x, training=training)
+                    x = tf.identity(x)
+                    tape.watch(x)
+                    y = block(x, training=training)
 
-                grads_combined = tape.gradient(
-                    y, [x] + block.trainable_variables, output_gradients=dy)
-                dy = grads_combined[0]
-                grads_all += grads_combined[1:]
-                vars_all += block.trainable_variables
+                    grads_combined = tape.gradient(
+                        y, [x] + block.trainable_variables, output_gradients=dy)
+                    dy = grads_combined[0]
+                    grads_all += grads_combined[1:]
+                    vars_all += block.trainable_variables
             else:
                 y, dy, grads, vars_ = block.backward_grads_and_vars(
                     y, dy, training=training)
@@ -149,125 +147,124 @@ class ReversibleSequence(tf.keras.Model):
         return dy, grads_all, vars_all
 
 
-class _Residual(tf.keras.Model):
-  """Single residual block contained in a _RevBlock. Each `_Residual` object has
-  two _ResidualInner objects, corresponding to the `F` and `G` functions in the
-  paper.
-  Args:
-    filters: output filter size
-    strides: length 2 list/tuple of integers for height and width strides
-    input_shape: length 3 list/tuple of integers
-    batch_norm_first: whether to apply activation and batch norm before conv
-    data_format: tensor data format, "NCHW"/"NHWC",
-    bottleneck: use bottleneck residual if True
-    fused: use fused batch normalization if True
-    dtype: float16, float32, or float64
-  """
+# class _Residual(tf.keras.Model):
+#     """Single residual block contained in a _RevBlock. Each `_Residual` object has
+#     two _ResidualInner objects, corresponding to the `F` and `G` functions in the
+#     paper.
+#     Args:
+#         filters: output filter size
+#         strides: length 2 list/tuple of integers for height and width strides
+#         input_shape: length 3 list/tuple of integers
+#         batch_norm_first: whether to apply activation and batch norm before conv
+#         data_format: tensor data format, "NCHW"/"NHWC",
+#         bottleneck: use bottleneck residual if True
+#         fused: use fused batch normalization if True
+#         dtype: float16, float32, or float64
+#     """
+#     def __init__(self,
+#                 filters,
+#                 strides,
+#                 input_shape,
+#                 batch_norm_first=True,
+#                 data_format="channels_first",
+#                 bottleneck=False,
+#                 fused=True,
+#                 dtype=tf.float32):
+#         super(_Residual, self).__init__()
 
-    def __init__(self,
-                filters,
-                strides,
-                input_shape,
-                batch_norm_first=True,
-                data_format="channels_first",
-                bottleneck=False,
-                fused=True,
-                dtype=tf.float32):
-        super(_Residual, self).__init__()
+#         self.filters = filters
+#         self.strides = strides
+#         self.axis = 1 if data_format == "channels_first" else 3
+#         if data_format == "channels_first":
+#             f_input_shape = (input_shape[0] // 2,) + input_shape[1:]
+#             g_input_shape = (filters // 2, input_shape[1] // strides[0],
+#                             input_shape[2] // strides[1])
+#         else:
+#             f_input_shape = input_shape[:2] + (input_shape[2] // 2,)
+#             g_input_shape = (input_shape[0] // strides[0],
+#                             input_shape[1] // strides[1], filters // 2)
 
-        self.filters = filters
-        self.strides = strides
-        self.axis = 1 if data_format == "channels_first" else 3
-        if data_format == "channels_first":
-            f_input_shape = (input_shape[0] // 2,) + input_shape[1:]
-            g_input_shape = (filters // 2, input_shape[1] // strides[0],
-                            input_shape[2] // strides[1])
-        else:
-            f_input_shape = input_shape[:2] + (input_shape[2] // 2,)
-            g_input_shape = (input_shape[0] // strides[0],
-                            input_shape[1] // strides[1], filters // 2)
+#         factory = _BottleneckResidualInner if bottleneck else _ResidualInner
+#         self.f = factory(
+#             filters=filters // 2,
+#             strides=strides,
+#             input_shape=f_input_shape,
+#             batch_norm_first=batch_norm_first,
+#             data_format=data_format,
+#             fused=fused,
+#             dtype=dtype)
+#         self.g = factory(
+#             filters=filters // 2,
+#             strides=(1, 1),
+#             input_shape=g_input_shape,
+#             batch_norm_first=batch_norm_first,
+#             data_format=data_format,
+#             fused=fused,
+#             dtype=dtype)
 
-        factory = _BottleneckResidualInner if bottleneck else _ResidualInner
-        self.f = factory(
-            filters=filters // 2,
-            strides=strides,
-            input_shape=f_input_shape,
-            batch_norm_first=batch_norm_first,
-            data_format=data_format,
-            fused=fused,
-            dtype=dtype)
-        self.g = factory(
-            filters=filters // 2,
-            strides=(1, 1),
-            input_shape=g_input_shape,
-            batch_norm_first=batch_norm_first,
-            data_format=data_format,
-            fused=fused,
-            dtype=dtype)
+#     def call(self, x, training=True, concat=True):
+#         """Apply residual block to inputs."""
 
-    def call(self, x, training=True, concat=True):
-        """Apply residual block to inputs."""
+#         x1, x2 = tf.split(x, num_or_size_splits=2, axis=self.axis)
+#         f_x2 = self.f(x2, training=training)
+#         x1_down = ops.downsample(
+#             x1, self.filters // 2, self.strides, axis=self.axis)
+#         x2_down = ops.downsample(
+#             x2, self.filters // 2, self.strides, axis=self.axis)
+#         y1 = f_x2 + x1_down
+#         g_y1 = self.g(y1, training=training)
+#         y2 = g_y1 + x2_down
+#         if not concat:  # For correct backward grads
+#             return y1, y2
 
-        x1, x2 = tf.split(x, num_or_size_splits=2, axis=self.axis)
-        f_x2 = self.f(x2, training=training)
-        x1_down = ops.downsample(
-            x1, self.filters // 2, self.strides, axis=self.axis)
-        x2_down = ops.downsample(
-            x2, self.filters // 2, self.strides, axis=self.axis)
-        y1 = f_x2 + x1_down
-        g_y1 = self.g(y1, training=training)
-        y2 = g_y1 + x2_down
-        if not concat:  # For correct backward grads
-        return y1, y2
+#         return tf.concat([y1, y2], axis=self.axis)
 
-        return tf.concat([y1, y2], axis=self.axis)
+#     def backward_grads_and_vars(self, y, dy, training=True):
+#         """Manually compute backward gradients given input and output grads."""
+#         dy1, dy2 = tf.split(dy, num_or_size_splits=2, axis=self.axis)
 
-    def backward_grads_and_vars(self, y, dy, training=True):
-        """Manually compute backward gradients given input and output grads."""
-        dy1, dy2 = tf.split(dy, num_or_size_splits=2, axis=self.axis)
+#         with tf.GradientTape(persistent=True) as tape:
+#             y = tf.identity(y)
+#             tape.watch(y)
+#             y1, y2 = tf.split(y, num_or_size_splits=2, axis=self.axis)
+#             z1 = y1
+#             gz1 = self.g(z1, training=training)
+#             x2 = y2 - gz1
+#             fx2 = self.f(x2, training=training)
+#             x1 = z1 - fx2
 
-        with tf.GradientTape(persistent=True) as tape:
-        y = tf.identity(y)
-        tape.watch(y)
-        y1, y2 = tf.split(y, num_or_size_splits=2, axis=self.axis)
-        z1 = y1
-        gz1 = self.g(z1, training=training)
-        x2 = y2 - gz1
-        fx2 = self.f(x2, training=training)
-        x1 = z1 - fx2
+#             grads_combined = tape.gradient(
+#                 gz1, [z1] + self.g.trainable_variables, output_gradients=dy2)
+#             dz1 = dy1 + grads_combined[0]
+#             dg = grads_combined[1:]
+#             dx1 = dz1
 
-        grads_combined = tape.gradient(
-            gz1, [z1] + self.g.trainable_variables, output_gradients=dy2)
-        dz1 = dy1 + grads_combined[0]
-        dg = grads_combined[1:]
-        dx1 = dz1
+#             grads_combined = tape.gradient(
+#                 fx2, [x2] + self.f.trainable_variables, output_gradients=dz1)
+#             dx2 = dy2 + grads_combined[0]
+#             df = grads_combined[1:]
 
-        grads_combined = tape.gradient(
-            fx2, [x2] + self.f.trainable_variables, output_gradients=dz1)
-        dx2 = dy2 + grads_combined[0]
-        df = grads_combined[1:]
+#             del tape
 
-        del tape
+#         grads = df + dg
+#         vars_ = self.f.trainable_variables + self.g.trainable_variables
 
-        grads = df + dg
-        vars_ = self.f.trainable_variables + self.g.trainable_variables
+#         x = tf.concat([x1, x2], axis=self.axis)
+#         dx = tf.concat([dx1, dx2], axis=self.axis)
 
-        x = tf.concat([x1, x2], axis=self.axis)
-        dx = tf.concat([dx1, dx2], axis=self.axis)
-
-        return x, dx, grads, vars_
+#         return x, dx, grads, vars_
 
 class ReversibleBlock(tf.keras.Model):
-  """Single residual block contained in a _RevBlock. Each `_Residual` object has
-  two _ResidualInner objects, corresponding to the `F` and `G` functions in the
-  paper. This version takes in the F and G block directly, instead of constructing them. 
+    """Single residual block contained in a _RevBlock. Each `_Residual` object has
+    two _ResidualInner objects, corresponding to the `F` and `G` functions in the
+    paper. This version takes in the F and G block directly, instead of constructing them. 
 
-  This implementation is based on PyTorch's RevTorch - ReversibleBlock
-  Args:
-    f_block: The first residual block
-    g_block: the second residual block
-    split_along_axis: axis for splitting, defaults to 1
-  """
+    This implementation is based on PyTorch's RevTorch - ReversibleBlock
+    Args:
+        f_block: The first residual block
+        g_block: the second residual block
+        split_along_axis: axis for splitting, defaults to 1
+    """
 
     def __init__(self,
                 f_block,
@@ -288,7 +285,7 @@ class ReversibleBlock(tf.keras.Model):
         g_y1 = self.g(y1, training=training)
         y2 = g_y1 + x2_down
         if not concat:  # For correct backward grads
-        return y1, y2
+            return y1, y2
 
         return tf.concat([y1, y2], axis=self.axis)
 
@@ -297,27 +294,27 @@ class ReversibleBlock(tf.keras.Model):
         dy1, dy2 = tf.split(dy, num_or_size_splits=2, axis=self.axis)
 
         with tf.GradientTape(persistent=True) as tape:
-        y = tf.identity(y)
-        tape.watch(y)
-        y1, y2 = tf.split(y, num_or_size_splits=2, axis=self.axis)
-        z1 = y1
-        gz1 = self.g(z1, training=training)
-        x2 = y2 - gz1
-        fx2 = self.f(x2, training=training)
-        x1 = z1 - fx2
+            y = tf.identity(y)
+            tape.watch(y)
+            y1, y2 = tf.split(y, num_or_size_splits=2, axis=self.axis)
+            z1 = y1
+            gz1 = self.g(z1, training=training)
+            x2 = y2 - gz1
+            fx2 = self.f(x2, training=training)
+            x1 = z1 - fx2
 
-        grads_combined = tape.gradient(
-            gz1, [z1] + self.g.trainable_variables, output_gradients=dy2)
-        dz1 = dy1 + grads_combined[0]
-        dg = grads_combined[1:]
-        dx1 = dz1
+            grads_combined = tape.gradient(
+                gz1, [z1] + self.g.trainable_variables, output_gradients=dy2)
+            dz1 = dy1 + grads_combined[0]
+            dg = grads_combined[1:]
+            dx1 = dz1
 
-        grads_combined = tape.gradient(
-            fx2, [x2] + self.f.trainable_variables, output_gradients=dz1)
-        dx2 = dy2 + grads_combined[0]
-        df = grads_combined[1:]
+            grads_combined = tape.gradient(
+                fx2, [x2] + self.f.trainable_variables, output_gradients=dz1)
+            dx2 = dy2 + grads_combined[0]
+            df = grads_combined[1:]
 
-        del tape
+            del tape
 
         grads = df + dg
         vars_ = self.f.trainable_variables + self.g.trainable_variables

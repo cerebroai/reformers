@@ -21,8 +21,8 @@
 # SOFTWARE.
 
 import tensorflow as tf
-from tensorflow.keras.layers import Dropout, Linear
-from TFutils import sort_key_val, batched_index_select, make_unit_length, chunked_sum, 
+from tensorflow.keras.layers import Dropout, Dense
+from TFutils import sort_key_val, batched_index_select, make_unit_length, chunked_sum
 
 class TFLSHAttention(tf.keras.Model):
     def __init__( self,
@@ -255,9 +255,9 @@ class TFLSHSelfAttention(tf.keras.Model):
         self.heads = heads
         self.attn_chunks = heads if attn_chunks is None else attn_chunks
 
-        self.toqk = Linear(emb, emb, bias = False)
-        self.tov = Linear(emb, emb, bias = False)
-        self.to_out = Linear(emb, emb)
+        self.toqk = Dense(emb, emb, bias = False)
+        self.tov = Dense(emb, emb, bias = False)
+        self.to_out = Dense(emb, emb)
 
         self.bucket_size = bucket_size
         self.lsh_attn = LSHAttention(bucket_size=bucket_size, causal=causal, random_rotations_per_head=random_rotations_per_head, attend_across_buckets = attend_across_buckets,  allow_duplicate_attention = allow_duplicate_attention, **kwargs)
