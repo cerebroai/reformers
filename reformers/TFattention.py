@@ -97,10 +97,10 @@ class TFFeedForward(tf.keras.Model):
     def __init__(self, emb, mult = 4):
         super().__init__()
         self.emb = emb
-        self.proj_in = Dense(emb, emb * mult)
-        self.proj_out = Dense(emb * mult, emb)
+        self.proj_in = Dense(emb * mult)
+        self.proj_out = Dense(emb)
 
-    def forward(self, inputs):
+    def call(self, inputs):
         inputs = self.proj_in(inputs)
         inputs = tf.keras.activations.relu(inputs)
         inputs = self.proj_out(inputs)

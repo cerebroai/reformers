@@ -24,20 +24,20 @@ import tensorflow as tf
 from tensorflow.keras import layers
 
 def make_unit_length(x, epsilon=1e-6):
-    norm = tf.norm(x,  ord=2, axis=-1, keepdim=True)
-    return tf.math.trudiv(x, norm + epsilon)
+    norm = tf.norm(x,  ord=2, axis=-1, keepdims=True)
+    return tf.math.truediv(x, norm + epsilon)
 
 def sort_key_val(t1, t2, dim=-1):
-    values, indices = tf.sort(t1, axis=dim)
+    values = tf.sort(t1, axis=dim)
     t2 = tf.broadcast_to(t2, t1.shape)
-    return values, t2.gather(dim, indices)
+    return values, tf.gather(t2, tf.argsort(t1, axis=dim), axis=dim)
 
 def batched_index_select(values, indices):
     last_dim = values.shape[-1]
-    return tf.broadcast_to(values.gather(1, indices[:, :, None]), (-1, -1, last_dim))
+    return tf.squeeze(tf.gather(values, indices[:, :, None], axis=1))
 
 def process_inputs_chunk(fn, *args, chunks=1):
-    chunked_inputs = list(map(lambda x: tf.chunk(x, chunks, axis=0), args))
+    chunked_inputs = list(map(lambda x: tf.split(x, chunks, axis=0), args))
     outputs = [fn(*input_pair) for input_pair in zip(*chunked_inputs)]
     return outputs
 
@@ -73,7 +73,11 @@ class WithNorm(layers.Layer):
     def __init__(self, norm_class, emb, fn):
         super(WithNorm, self).__init__()
         self.emb = emb
-        self.norm = norm_class(emb)
+        if isinstance(norm_class, ScaleNorm):
+            self.norm = norm_class(emb)
+        else:
+            self.norm = norm_class()
+
         self.fn = fn
 
     def call(self, inputs):

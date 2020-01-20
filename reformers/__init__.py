@@ -1,2 +1,2 @@
-from TFreformers import TFReformer
-from reformers import Reformer
+from .TFreformers import TFReformer, TFReformerLM
+from .reformers import Reformer, ReformerLM

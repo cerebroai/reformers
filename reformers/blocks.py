@@ -108,14 +108,16 @@ class ReversibleSequence(tf.keras.Model):
         fused: use fused batch normalization if True
         dtype: float16, float32, or float64
         """
-        super(RevBlock, self).__init__()
+        super(ReversibleSequence, self).__init__()
         self.blocks = blocks
 
     def call(self, h, training=True):
         """Apply reversible block to inputs."""
-
+        count = 0
         for block in self.blocks:
             h = block(h, training=training)
+            print(count)
+            count += 1
         return h
 
     def backward_grads_and_vars(self, x, y, dy, training=True):
@@ -270,7 +272,7 @@ class ReversibleBlock(tf.keras.Model):
                 f_block,
                 g_block,
                 split_along_axis=1):
-        super(_Residual, self).__init__()
+        super(ReversibleBlock, self).__init__()
 
         self.axis = split_along_axis        
         self.f = f_block
@@ -281,9 +283,9 @@ class ReversibleBlock(tf.keras.Model):
 
         x1, x2 = tf.split(x, num_or_size_splits=2, axis=self.axis)
         f_x2 = self.f(x2, training=training)
-        y1 = f_x2 + x1_down
+        y1 = f_x2 + x1
         g_y1 = self.g(y1, training=training)
-        y2 = g_y1 + x2_down
+        y2 = g_y1 + x2
         if not concat:  # For correct backward grads
             return y1, y2
 

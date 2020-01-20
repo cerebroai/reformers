@@ -18,6 +18,7 @@ def batched_index_select(values, indices):
 
 def process_inputs_chunk(fn, *args, chunks=1):
     chunked_inputs = list(map(lambda x: x.chunk(chunks, dim=0), args))
+    print(len(list(zip(*chunked_inputs))[0]))
     outputs = [fn(*input_pair) for input_pair in zip(*chunked_inputs)]
     return outputs
 

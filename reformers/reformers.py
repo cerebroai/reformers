@@ -25,6 +25,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Function
 from revtorch import ReversibleBlock, ReversibleSequence
+from .attention import SelfAttention, FeedForward
+from .efficient_attention import LSHSelfAttention
+from .utils import WithNorm, Chunk
 
 class Reformer(nn.Module):
     def __init__(self, emb, depth, max_seq_len, heads = 8, bucket_size = 64, n_hashes = 8, ff_chunks = 100, attn_chunks = None, causal = False, weight_tie = False, lsh_dropout = 0., lsh_attend_across_buckets = True, lsh_allow_duplicate_attention = True, random_rotations_per_head = False, twin_attention = False, use_scale_norm = False, use_full_attn = False):

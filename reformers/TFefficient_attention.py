@@ -22,7 +22,7 @@
 
 import tensorflow as tf
 from tensorflow.keras.layers import Dropout, Dense
-from TFutils import sort_key_val, batched_index_select, make_unit_length, chunked_sum
+from .TFutils import sort_key_val, batched_index_select, make_unit_length, chunked_sum, process_inputs_chunk
 
 class TFLSHAttention(tf.keras.Model):
     def __init__( self,
@@ -35,7 +35,7 @@ class TFLSHAttention(tf.keras.Model):
                   rehash_each_round = True,
                   drop_for_hash_rate = 0.0,
                   random_rotations_per_head = False):
-        super(TfLSHAttention, self).__init__()
+        super(TFLSHAttention, self).__init__()
         if dropout >= 1.0:
             raise ValueError('Dropout rates must be lower than 1.')
 
@@ -72,28 +72,29 @@ class TFLSHAttention(tf.keras.Model):
             self.n_hashes if self._rehash_each_round else 1,
             rot_size // 2)
 
-        random_rotations = tf.broadcast_to(tf.random.normal(rotations_shape), (batch_size, -1, -1, -1))
+        random_rotations = tf.broadcast_to(tf.random.normal(rotations_shape), (batch_size, vecs.shape[-1], self.n_hashes if self._rehash_each_round else 1, rot_size // 2))
 
         dropped_vecs = self.dropout_for_hash(vecs)
         rotated_vecs = tf.einsum('btf,bfhi->bhti', dropped_vecs, random_rotations)
 
         if self._rehash_each_round:
-            rotated_vecs = tf.concat([rotated_vecs, -rotated_vecs], dim=-1)
+            rotated_vecs = tf.concat([rotated_vecs, -rotated_vecs], axis=-1)
             buckets = tf.math.argmax(rotated_vecs, axis=-1)
             # buckets is now (self.n_hashes, seqlen). Next we add offsets so that
             # bucket numbers from different hashing rounds don't overlap.
-            offsets = tf.range(self.n_hashes, device=device)
+            offsets = tf.range(self.n_hashes)
             offsets = tf.reshape(offsets * n_buckets, (1, -1, 1))
+            offsets = tf.cast(offsets, tf.int64)
             buckets = tf.reshape(buckets + offsets, (batch_size, -1,))
         else:
-            rotated_vecs = tf.concat([rotated_vecs, -rotated_vecs], dim=-1)
+            rotated_vecs = tf.concat([rotated_vecs, -rotated_vecs], axis=-1)
             # In this configuration, we map each item to the top self.n_hashes buckets
             rotated_vecs = tf.squeeze(rotated_vecs, axis=0)
-            bucket_range = tf.range(rotated_vecs.shape[-1], device=device)
+            bucket_range = tf.range(rotated_vecs.shape[-1])
             bucket_range = tf.reshape(bucket_range, (1, -1))
             bucket_range = tf.broadcast_to(bucket_range, rotated_vecs.shape)
 
-            _, buckets = sort_key_val(rotated_vecs, bucket_range, dim=-1)
+            _, buckets = sort_key_val(rotated_vecs, bucket_range, axis=-1)
             buckets = buckets[:, -self.n_hashes:]
 
             h, *_ = buckets.shape 
@@ -113,7 +114,7 @@ class TFLSHAttention(tf.keras.Model):
         assert int(buckets.shape[1]) == self.n_hashes * seqlen
 
         ticker = tf.expand_dims(tf.range(self.n_hashes * seqlen), axis=0)
-        buckets_and_t = seqlen * buckets + (ticker % seqlen)
+        buckets_and_t = seqlen * buckets + tf.cast((ticker % seqlen), tf.int64)
         buckets_and_t = tf.stop_gradient(buckets_and_t)
 
         # Hash-based sort ("s" at the start of variable names means "sorted")
@@ -146,8 +147,8 @@ class TFLSHAttention(tf.keras.Model):
         # boundaries might occur in the middle of a sequence of items from the
         # same bucket, so this increases the chances of attending to relevant items.
         def look_one_back(x):
-            x_extra = torch.cat([x[:, -1:, ...], x[:, :-1, ...]], dim=1)
-            return torch.cat([x, x_extra], dim=2)
+            x_extra = tf.concat([x[:, -1:, ...], x[:, :-1, ...]], axis=1)
+            return tf.concat([x, x_extra], axis=2)
 
         bk = look_one_back(bk)
         bv = look_one_back(bv)
@@ -155,23 +156,23 @@ class TFLSHAttention(tf.keras.Model):
         bkv_buckets = look_one_back(bkv_buckets)
 
         # Dot-product attention.
-        dots = torch.einsum('bhie,bhje->bhij', bq, bk) * (bq.shape[-1] ** -0.5)
+        dots = tf.einsum('bhie,bhje->bhij', bq, bk) * (bq.shape[-1] ** -0.5)
 
         # Causal masking
         if self.causal:
-            mask = bq_t[:, :, :, None] < bkv_t[:, :, None, :]
-            dots.masked_fill_(mask, float('-inf'))
+            mask = bq_t[:, :, :, None] < bkv_t[:, :, None, :] 
+            dots = tf.math.multiply(dots, tf.cast(mask, tf.float32)) + (1-tf.cast(mask, tf.float32)) * float('-inf')
             del mask
 
         # Mask out attention to self except when no other targets are available.
         self_mask = bq_t[:, :, :, None] == bkv_t[:, :, None, :]
-        dots.masked_fill_(self_mask, - 1e5)
+        dots = tf.math.multiply(dots, tf.cast(self_mask, tf.float32)) + (1-tf.cast(self_mask, tf.float32)) * (- 1e5)
         del self_mask
 
         # Mask out attention to other hash buckets.
         if not self._attend_across_buckets:
             bucket_mask = bq_buckets[:, :, :, None] != bkv_buckets[:, :, None, :]
-            dots.masked_fill_(bucket_mask, float('-inf'))
+            dots = tf.math.multiply(dots, tf.cast(bucket_mask, tf.float32)) + (1-tf.cast(bucket_mask, tf.float32)) * float('-inf')
             del bucket_mask
 
         # Don't double-count query-key pairs across multiple rounds of hashing.
@@ -210,7 +211,7 @@ class TFLSHAttention(tf.keras.Model):
             del dup_counts
 
         # Softmax.
-        dots_logsumexp = tf.logsumexp(dots, axis=-1, keepdim=True)
+        dots_logsumexp = tf.math.reduce_logsumexp(dots, axis=-1, keepdims=True)
         dots = tf.exp(dots - dots_logsumexp)
         dots = self.dropout(dots)
 
@@ -218,49 +219,46 @@ class TFLSHAttention(tf.keras.Model):
         so = tf.reshape(bo, (batch_size, -1, bo.shape[-1]))
         slogits = tf.reshape(dots_logsumexp, (batch_size, -1,))
 
-        class UnsortLogits(Function):
-            @staticmethod
-            def forward(ctx, so, slogits):
-                so = so.detach()
-                slogits = slogits.detach()
+        class UnsortLogits(tf.keras.layers.Layer):
+            def __init__(self):
+                super(UnsortLogits, self).__init__()
+            
+            def call(self, so, slogits):
+                so, slogits = tf.stop_gradient(so), tf.stop_gradient(slogits)
                 o = batched_index_select(so, undo_sort)
                 _, logits = sort_key_val(sticker, slogits, dim=-1)
                 return o, logits
 
-            @staticmethod
-            def backward(ctx, grad_x, grad_y):
-                so_grad = batched_index_select(grad_x, sticker)
-                _, slogits_grad = sort_key_val(buckets_and_t, grad_y, dim=-1)
-                return so_grad, slogits_grad
-
-        o, logits = UnsortLogits.apply(so, slogits)
+            
+        unsortlogits = UnsortLogits()
+        o, logits = unsortlogits(so, slogits)
 
         if self.n_hashes == 1:
             out = o
         else:
             o = tf.reshape(o, (batch_size, self.n_hashes, seqlen, o.shape[-1]))
             logits = tf.reshape(logits, (batch_size, self.n_hashes, seqlen, 1))
-            probs = tf.exp(logits - tf.logsumexp(logits, axis=1, keepdims=True))
-            out = tf.sum(o * probs, dim=1)
+            probs = tf.exp(logits - tf.math.reduce_logsumexp(logits, axis=1, keepdims=True))
+            out = tf.reduce_sum(o * probs, axis=1)
 
         assert out.shape == v.shape
         return out, buckets
 
 class TFLSHSelfAttention(tf.keras.Model):
     def __init__(self, emb, heads = 8, bucket_size = 64, n_hashes = 8, causal = False, attn_chunks = None, random_rotations_per_head = False, attend_across_buckets = True, allow_duplicate_attention = True, **kwargs):
-        super(LSHSelfAttention, self).__init__()
+        super(TFLSHSelfAttention, self).__init__()
         assert emb % heads == 0, 'dimensions must be divisible by number of heads'
 
         self.emb = emb
         self.heads = heads
         self.attn_chunks = heads if attn_chunks is None else attn_chunks
 
-        self.toqk = Dense(emb, emb, bias = False)
-        self.tov = Dense(emb, emb, bias = False)
-        self.to_out = Dense(emb, emb)
+        self.toqk = Dense(emb, use_bias = False)
+        self.tov = Dense(emb, use_bias = False)
+        self.to_out = Dense(emb)
 
         self.bucket_size = bucket_size
-        self.lsh_attn = LSHAttention(bucket_size=bucket_size, causal=causal, random_rotations_per_head=random_rotations_per_head, attend_across_buckets = attend_across_buckets,  allow_duplicate_attention = allow_duplicate_attention, **kwargs)
+        self.lsh_attn = TFLSHAttention(bucket_size=bucket_size, causal=causal, random_rotations_per_head=random_rotations_per_head, attend_across_buckets = attend_across_buckets,  allow_duplicate_attention = allow_duplicate_attention, **kwargs)
 
     def call(self, inputs):
         b, t, e, h = *inputs.shape, self.heads
@@ -270,17 +268,17 @@ class TFLSHSelfAttention(tf.keras.Model):
         v = self.tov(inputs)
 
         def merge_heads(v):
-            return v.view(b, t, h, -1).transpose(1, 2).reshape(b * h, t, -1)
+            return tf.reshape(tf.transpose(tf.reshape(v, (b, t, h, -1)), perm=[0, 2, 1, 3]), (b * h, t, -1)) 
 
         def split_heads(v):
-            return v.view(b, h, t, -1).transpose(1, 2).contiguous()
+            return tf.transpose(tf.reshape(v, (b, t, h, -1)), perm=[0, 2, 1, 3])
 
         qk = merge_heads(qk)
         v = merge_heads(v)
 
         outputs = process_inputs_chunk(self.lsh_attn, qk, v, chunks=self.attn_chunks)
-        attn_out = torch.concat([output for (output, _) in outputs], dim=0)
+        attn_out = tf.concat([output for (output, _) in outputs], axis=0)
 
-        out = split_heads(attn_out).view(b, t, e)
+        out = tf.reshape(split_heads(attn_out), (b, t, e))
 
         return self.to_out(out)

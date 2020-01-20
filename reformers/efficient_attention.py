@@ -20,6 +20,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+import torch
+import torch.nn as nn
+from torch.autograd import Function
+import torch.nn.functional as F
+from .utils import process_inputs_chunk, sort_key_val, batched_index_select, make_unit_length
+
 class LSHAttention(nn.Module):
     def __init__( self,
                   dropout = 0.,
