@@ -25,6 +25,7 @@ from tensorflow.keras.layers import Embedding
 from TFefficient_attention import TFLSHAttention, TFLSHSelfAttention
 from TFattention import TFSelfAttention, TFFeedForward
 from TFutils import cache_fn, Chunk, WithNorm
+from blocks import ReversibleBlock, ReversibleSequence
 
 class TFReformer(tf.keras.Model):
     def __init__(self, emb, depth, max_seq_len, heads = 8, bucket_size = 64, n_hashes = 8, ff_chunks = 100, attn_chunks = None, causal = False, weight_tie = False, lsh_dropout = 0., lsh_attend_across_buckets = True, lsh_allow_duplicate_attention = True, random_rotations_per_head = False, twin_attention = False, use_scale_norm = False, use_full_attn = False):
@@ -55,9 +56,9 @@ class TFReformer(tf.keras.Model):
             if not twin_attention and ff_chunks > 1:
                 g = Chunk(ff_chunks, g, along_dim = -2)
 
-            blocks.append(ReversibleBlock(f, g, split_along_dim=-1))
+            blocks.append(ReversibleBlock(f, g, split_along_axis=-1))
 
-        self.layers = ReversibleSequence(nn.ModuleList(blocks))
+        self.layers = ReversibleSequence(tf.ModuleList(blocks))
 
     def call(self, x):
         x = torch.concat([x, x], dim = -1)
