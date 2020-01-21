@@ -1,4 +1,4 @@
-from reformers import ReformerLM, TFReformerLM
+from reformers import ReformerLM, TFReformerLM, TFLSHAttention
 import torch
 import tensorflow as tf
 
@@ -22,7 +22,7 @@ model_tf = TFReformerLM(
     num_tokens= 20000,
     emb = 512,
     depth = 1,
-    max_seq_len = 32768,
+    max_seq_len = 32000,
     heads = 8,
     lsh_dropout = 0.1,
     causal = True,        # auto-regressive or not
@@ -34,8 +34,10 @@ model_tf = TFReformerLM(
     use_full_attn = False   # use full self attention, for comparison
 )
 
-x = tf.random.uniform((1, 32000))
-y = model_tf(x)
+# x = tf.random.uniform((1, 32000))
+model_tf.build(input_shape=(1,32000))
+model_tf.summary()
+# y = model_tf(x)
 
 # x = torch.randint(0, 20000, (1, 32768)).long()
 # y = model(x)
