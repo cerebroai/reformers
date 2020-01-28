@@ -135,11 +135,8 @@ class ReversibleSequence(tf.keras.Model):
 
     def call(self, h, training=True):
         """Apply reversible block to inputs."""
-        count = 0
         for block in self.blocks:
             h = block(h, training=training)
-            print(count)
-            count += 1
         return h
 
     def backward_grads_and_vars(self, x, y, dy, training=True):
